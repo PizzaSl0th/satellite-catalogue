@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Satellite Catalogue</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- Home Screen with Satellite Bubbles -->
+    <section id="home-screen" class="screen active">
+        <header>
+            <h1>Satellite Catalogue</h1>
+            <p class="subtitle">Select a satellite to explore its architecture</p>
+        </header>
+
+        <div class="home-actions">
+            <button id="add-satellite-btn" class="action-button">
+                <span class="btn-icon">+</span> Add Satellite
+            </button>
+            <button id="export-btn" class="action-button secondary">
+                <span class="btn-icon">↑</span> Export Data
+            </button>
+            <button id="import-btn" class="action-button secondary">
+                <span class="btn-icon">↓</span> Import Data
+            </button>
+            <input type="file" id="import-file" accept=".json" style="display: none;">
+        </div>
+
+        <div id="satellite-bubbles" class="bubbles-container"></div>
+    </section>
+
+    <!-- Detail Screen with Three Panels -->
+    <section id="detail-screen" class="screen">
+        <!-- Back Button -->
+        <button id="back-btn" class="back-button">
+            <span class="arrow">←</span> Back to Satellites
+        </button>
+
+        <!-- Edit Satellite Button -->
+        <button id="edit-satellite-btn" class="edit-satellite-button">
+            <span class="btn-icon">✏️</span> Edit Satellite
+        </button>
+
+        <!-- Delete Satellite Button -->
+        <button id="delete-satellite-btn" class="delete-satellite-button">
+            <span class="btn-icon">🗑️</span>
+        </button>
+
+        <!-- Selected Satellite Header -->
+        <div id="selected-header" class="selected-header">
+            <div id="header-bubble" class="header-bubble"></div>
+        </div>
+
+        <!-- Three Panel Layout -->
+        <div class="panels-container">
+            <!-- Left Panel: Image -->
+            <aside id="image-panel" class="panel image-panel">
+                <div class="panel-header">
+                    <h3>Preview</h3>
+                    <button id="upload-image-btn" class="upload-button">📷 Upload</button>
+                </div>
+                <div class="image-container">
+                    <div class="no-image-placeholder">🛰️</div>
+                    <img id="preview-image" src="" alt="Satellite preview">
+                    <p id="image-caption" class="image-caption"></p>
+                </div>
+                <input type="file" id="image-upload" accept="image/*" style="display: none;">
+            </aside>
+
+            <!-- Center Panel: Decision Tree -->
+            <main id="tree-panel" class="panel tree-panel">
+                <div class="panel-header">
+                    <h3>Components</h3>
+                    <button id="add-module-btn" class="add-module-button">+ Add Module</button>
+                </div>
+                <div id="breadcrumb" class="breadcrumb"></div>
+                <div id="decision-tree" class="decision-tree"></div>
+            </main>
+
+            <!-- Right Panel: Info Text -->
+            <aside id="info-panel" class="panel info-panel">
+                <div class="panel-header">
+                    <h3>Information</h3>
+                    <div class="panel-actions">
+                        <button id="edit-node-btn" class="icon-button" title="Edit">✏️</button>
+                        <button id="delete-node-btn" class="icon-button delete" title="Delete">🗑️</button>
+                        <button id="expand-btn" class="expand-button">Expand</button>
+                    </div>
+                </div>
+                <div id="info-content" class="info-content">
+                    <h4 id="info-title"></h4>
+                    <div id="info-text"></div>
+                </div>
+            </aside>
+        </div>
+
+        <!-- Expanded Info Overlay -->
+        <div id="expanded-overlay" class="expanded-overlay hidden">
+            <div class="expanded-content">
+                <div class="expanded-header">
+                    <h2 id="expanded-title"></h2>
+                    <button id="collapse-btn" class="collapse-button">Collapse</button>
+                </div>
+                <div id="expanded-text" class="expanded-text"></div>
+                <div id="mini-tree" class="mini-tree"></div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Edit Modal -->
+    <div id="edit-modal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modal-title">Edit</h2>
+                <button id="modal-close" class="modal-close">&times;</button>
+            </div>
+            <form id="edit-form" class="edit-form">
+                <div class="form-group">
+                    <label for="edit-name">Name</label>
+                    <input type="text" id="edit-name" required>
+                </div>
+                <div class="form-group">
+                    <label for="edit-icon">Icon (emoji)</label>
+                    <input type="text" id="edit-icon" maxlength="4" placeholder="🛰️">
+                </div>
+                <div class="form-group">
+                    <label for="edit-type">Type / Category</label>
+                    <input type="text" id="edit-type" placeholder="e.g., Communications Satellite">
+                </div>
+                <div class="form-group">
+                    <label for="edit-image">Image URL (optional)</label>
+                    <input type="text" id="edit-image" placeholder="images/satellite.jpg">
+                </div>
+                <div class="form-group">
+                    <label for="edit-description">Description</label>
+                    <textarea id="edit-description" rows="8" placeholder="Use **bold** and *italic* for formatting. Use - for bullet lists."></textarea>
+                </div>
+                <div class="form-actions">
+                    <button type="button" id="cancel-edit" class="btn-secondary">Cancel</button>
+                    <button type="submit" class="btn-primary">Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Confirm Delete Modal -->
+    <div id="confirm-modal" class="modal hidden">
+        <div class="modal-content modal-small">
+            <div class="modal-header">
+                <h2>Confirm Delete</h2>
+            </div>
+            <p id="confirm-message">Are you sure you want to delete this item?</p>
+            <div class="form-actions">
+                <button id="confirm-cancel" class="btn-secondary">Cancel</button>
+                <button id="confirm-delete" class="btn-danger">Delete</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="toast hidden"></div>
+
+    <!--
+    SATELLITE FILES
+    ================
+    To add a new satellite:
+    1. Create a new .js file in the satellites/ folder (copy _template.js)
+    2. Add a <script> tag below (after _loader.js, before app.js)
+    -->
+    <script src="satellites/_loader.js"></script>
+    <script src="satellites/hubble.js"></script>
+    <script src="satellites/iss.js"></script>
+    <!-- Add more satellite files here -->
+
+    <script src="app.js"></script>
+</body>
+</html>
