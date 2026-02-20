@@ -312,10 +312,9 @@ function drillDown(node, index) {
     renderTree(node.modules || []);
     updateBreadcrumb();
 
-    // Clear selection since we're now showing children
-    // Info panel still shows the drilled-into node's info
-    selectedNode = null;
-    selectedNodeIndex = -1;
+    // Keep the drilled-into node as selected so it can be edited
+    selectedNode = node;
+    selectedNodeIndex = index;
 }
 
 function getCurrentModules() {
@@ -711,15 +710,39 @@ function deleteSelectedModule() {
     }
 
     openConfirmModal('Delete "' + selectedNode.name + '" and all sub-modules?', function() {
-        var parent = getCurrentParent();
-        if (parent.modules) {
-            parent.modules.splice(selectedNodeIndex, 1);
-            saveData();
-            renderTree(parent.modules);
-            selectedNode = null;
-            selectedNodeIndex = -1;
-            updateInfo(parent.name, parent.description);
-            showToast('Deleted', 'success');
+        // Check if we're deleting the current context (the module we drilled into)
+        var isCurrentContext = currentPath.length > 0 &&
+            currentPath[currentPath.length - 1].nodeRef === selectedNode;
+
+        if (isCurrentContext) {
+            // Go up one level and delete from there
+            var indexToDelete = currentPath[currentPath.length - 1].selectedIndex;
+            currentPath.pop();
+
+            var parent = getCurrentParent();
+            if (parent.modules) {
+                parent.modules.splice(indexToDelete, 1);
+                saveData();
+                renderTree(parent.modules || []);
+                updateBreadcrumb();
+                selectedNode = null;
+                selectedNodeIndex = -1;
+                updateInfo(parent.name, parent.description);
+                updateImage(parent.image, parent.name);
+                showToast('Deleted', 'success');
+            }
+        } else {
+            // Deleting a child of the current view
+            var parent = getCurrentParent();
+            if (parent.modules) {
+                parent.modules.splice(selectedNodeIndex, 1);
+                saveData();
+                renderTree(parent.modules);
+                selectedNode = null;
+                selectedNodeIndex = -1;
+                updateInfo(parent.name, parent.description);
+                showToast('Deleted', 'success');
+            }
         }
     });
 }
