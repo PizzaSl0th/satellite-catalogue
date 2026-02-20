@@ -380,6 +380,10 @@ function updateBreadcrumb() {
 }
 
 function navigateToLevel(level) {
+    // Clear selection first so updateEditButtonVisibility works correctly
+    selectedNode = null;
+    selectedNodeIndex = -1;
+
     if (level === -1) {
         currentPath = [];
         renderTree(currentSatellite.modules || []);
@@ -396,8 +400,6 @@ function navigateToLevel(level) {
     }
 
     updateBreadcrumb();
-    selectedNode = null;
-    selectedNodeIndex = -1;
 }
 
 // ==================== UPDATE IMAGE ====================
@@ -419,9 +421,25 @@ function updateImage(imagePath, caption) {
     imageCaption.textContent = caption || '';
 }
 
+// ==================== UPDATE EDIT BUTTON VISIBILITY ====================
+function updateEditButtonVisibility() {
+    var editBtn = document.getElementById('edit-node-btn');
+    var addSubBtn = document.getElementById('add-subcomponent-btn');
+
+    // Hide edit and add-subcomponent buttons when at satellite root level
+    if (currentPath.length === 0 && !selectedNode) {
+        editBtn.style.display = 'none';
+        addSubBtn.style.display = 'none';
+    } else {
+        editBtn.style.display = '';
+        addSubBtn.style.display = '';
+    }
+}
+
 // ==================== UPDATE INFO ====================
 function updateInfo(title, description) {
     document.getElementById('info-title').textContent = title;
+    updateEditButtonVisibility();
 
     var infoText = document.getElementById('info-text');
     if (description) {
