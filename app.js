@@ -445,47 +445,58 @@ function expandInfo() {
     document.getElementById('expanded-title').textContent = document.getElementById('info-title').textContent;
     document.getElementById('expanded-text').innerHTML = document.getElementById('info-text').innerHTML;
 
-    var miniTree = document.getElementById('mini-tree');
-    var currentModules = getCurrentModules();
+    var pathTree = document.getElementById('path-tree');
 
-    if (currentModules && currentModules.length > 0) {
-        var html = '';
-        for (var i = 0; i < currentModules.length; i++) {
-            var node = currentModules[i];
-            html += '<div class="tree-node" data-index="' + i + '">';
-            html += '<div class="node-icon">' + (node.icon || '📦') + '</div>';
-            html += '<div class="node-name">' + node.name + '</div>';
-            html += '</div>';
+    // Build path from satellite to current location
+    var pathNodes = [];
+
+    // Add satellite as root
+    pathNodes.push({
+        icon: currentSatellite.icon || '🛰️',
+        name: currentSatellite.name,
+        type: currentSatellite.type || 'Satellite',
+        isCurrent: currentPath.length === 0 && !selectedNode
+    });
+
+    // Add each level in the path
+    var current = currentSatellite;
+    for (var i = 0; i < currentPath.length; i++) {
+        var pathItem = currentPath[i];
+        if (current.modules && current.modules[pathItem.selectedIndex]) {
+            current = current.modules[pathItem.selectedIndex];
+            pathNodes.push({
+                icon: current.icon || '📦',
+                name: current.name,
+                type: current.type || 'Module',
+                isCurrent: i === currentPath.length - 1 && !selectedNode
+            });
         }
-        miniTree.innerHTML = html;
-        miniTree.style.display = 'flex';
-
-        var nodes = miniTree.querySelectorAll('.tree-node');
-        for (var j = 0; j < nodes.length; j++) {
-            (function(nodeEl, modules) {
-                nodeEl.onclick = function() {
-                    var index = parseInt(this.getAttribute('data-index'));
-                    var node = modules[index];
-                    collapseInfo();
-
-                    // Update info and image
-                    selectedNode = node;
-                    selectedNodeIndex = index;
-                    updateInfo(node.name, node.description);
-                    updateImage(node.image, node.name);
-
-                    // Drill down if has children
-                    if (node.modules && node.modules.length > 0) {
-                        drillDown(node, index);
-                    } else {
-                        selectNodeVisually(index);
-                    }
-                };
-            })(nodes[j], currentModules);
-        }
-    } else {
-        miniTree.style.display = 'none';
     }
+
+    // Add selected node if there is one
+    if (selectedNode) {
+        pathNodes.push({
+            icon: selectedNode.icon || '📦',
+            name: selectedNode.name,
+            type: selectedNode.type || 'Component',
+            isCurrent: true
+        });
+    }
+
+    // Render path tree
+    var html = '';
+    for (var j = 0; j < pathNodes.length; j++) {
+        if (j > 0) {
+            html += '<span class="path-separator">›</span>';
+        }
+        var node = pathNodes[j];
+        html += '<div class="path-node' + (node.isCurrent ? ' current' : '') + '">';
+        html += '<span class="path-icon">' + node.icon + '</span>';
+        html += '<span class="path-name">' + node.name + '</span>';
+        html += '</div>';
+    }
+    pathTree.innerHTML = html;
+    pathTree.style.display = 'flex';
 
     document.getElementById('expanded-overlay').classList.remove('hidden');
 }
@@ -504,6 +515,10 @@ function openEditModal(target) {
     var editImage = document.getElementById('edit-image');
     var editDescription = document.getElementById('edit-description');
     var modalTitle = document.getElementById('modal-title');
+    var deleteBtn = document.getElementById('delete-in-modal');
+
+    // Hide delete button by default
+    deleteBtn.classList.add('hidden');
 
     if (target === 'new-satellite') {
         modalTitle.textContent = 'Add New Satellite';
@@ -519,6 +534,13 @@ function openEditModal(target) {
         editType.value = '';
         editImage.value = '';
         editDescription.value = '';
+    } else if (target === 'new-subcomponent') {
+        modalTitle.textContent = 'Add Sub-component to ' + selectedNode.name;
+        editName.value = '';
+        editIcon.value = '📦';
+        editType.value = '';
+        editImage.value = '';
+        editDescription.value = '';
     } else if (target === 'satellite') {
         modalTitle.textContent = 'Edit Satellite';
         editName.value = currentSatellite.name || '';
@@ -526,6 +548,7 @@ function openEditModal(target) {
         editType.value = currentSatellite.type || '';
         editImage.value = currentSatellite.image || '';
         editDescription.value = currentSatellite.description || '';
+        deleteBtn.classList.remove('hidden');
     } else if (target === 'module' && selectedNode) {
         modalTitle.textContent = 'Edit Module';
         editName.value = selectedNode.name || '';
@@ -533,6 +556,7 @@ function openEditModal(target) {
         editType.value = selectedNode.type || '';
         editImage.value = selectedNode.image || '';
         editDescription.value = selectedNode.description || '';
+        deleteBtn.classList.remove('hidden');
     }
 
     document.getElementById('edit-modal').classList.remove('hidden');
@@ -588,6 +612,26 @@ function saveEdit() {
         saveData();
         renderTree(parent.modules);
         showToast('Module added!', 'success');
+
+    } else if (editTarget === 'new-subcomponent') {
+        if (!selectedNode.modules) selectedNode.modules = [];
+
+        var newSubcomponent = {
+            id: generateId(),
+            name: name,
+            icon: icon,
+            type: type,
+            image: image,
+            description: description,
+            modules: []
+        };
+        selectedNode.modules.push(newSubcomponent);
+        saveData();
+
+        // Re-render current tree
+        var currentModules = getCurrentModules();
+        renderTree(currentModules);
+        showToast('Sub-component added!', 'success');
 
     } else if (editTarget === 'satellite') {
         currentSatellite.name = name;
@@ -730,8 +774,6 @@ function setupEventListeners() {
         openEditModal('satellite');
     };
 
-    document.getElementById('delete-satellite-btn').onclick = deleteSatellite;
-
     // Tree panel
     document.getElementById('add-module-btn').onclick = function() {
         openEditModal('new-module');
@@ -746,7 +788,13 @@ function setupEventListeners() {
         }
     };
 
-    document.getElementById('delete-node-btn').onclick = deleteSelectedModule;
+    document.getElementById('add-subcomponent-btn').onclick = function() {
+        if (selectedNode) {
+            openEditModal('new-subcomponent');
+        } else {
+            showToast('Select a module first', 'error');
+        }
+    };
     document.getElementById('expand-btn').onclick = expandInfo;
     document.getElementById('collapse-btn').onclick = collapseInfo;
 
@@ -774,6 +822,15 @@ function setupEventListeners() {
     document.getElementById('edit-form').onsubmit = function(e) {
         e.preventDefault();
         saveEdit();
+    };
+
+    document.getElementById('delete-in-modal').onclick = function() {
+        closeEditModal();
+        if (editTarget === 'satellite') {
+            deleteSatellite();
+        } else if (editTarget === 'module') {
+            deleteSelectedModule();
+        }
     };
 
     document.getElementById('edit-modal').onclick = function(e) {
