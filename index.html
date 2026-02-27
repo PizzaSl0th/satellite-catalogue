@@ -14,6 +14,15 @@
             <p class="subtitle">Select a satellite to explore its architecture</p>
         </header>
 
+        <div class="search-container">
+            <div class="search-input-wrap">
+                <span class="search-icon">&#128269;</span>
+                <input type="text" id="search-input" placeholder="Search satellites, modules, descriptions..." autocomplete="off">
+                <button id="search-clear" class="search-clear hidden">&times;</button>
+            </div>
+            <div id="search-results" class="search-results hidden"></div>
+        </div>
+
         <div class="home-actions">
             <button id="add-satellite-btn" class="action-button">
                 <span class="btn-icon">+</span> Add Satellite
@@ -154,6 +163,12 @@
                 <button id="confirm-delete" class="btn-danger">Delete</button>
             </div>
         </div>
+    </div>
+
+    <!-- Image Lightbox -->
+    <div id="image-lightbox" class="image-lightbox hidden" onclick="closeLightbox()">
+        <img id="lightbox-img" src="" alt="Expanded image">
+        <button id="lightbox-delete-btn" class="lightbox-delete-btn" onclick="event.stopPropagation(); removeImage();">Remove Image</button>
     </div>
 
     <!-- Toast Notification -->

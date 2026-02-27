@@ -111,6 +111,32 @@ function generateId() {
     return 'sat-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
 }
 
+// ==================== IMAGE LIGHTBOX ====================
+function openLightbox() {
+    var previewImage = document.getElementById('preview-image');
+    if (previewImage.src && previewImage.style.display !== 'none') {
+        document.getElementById('lightbox-img').src = previewImage.src;
+        document.getElementById('image-lightbox').classList.remove('hidden');
+    }
+}
+
+function closeLightbox() {
+    document.getElementById('image-lightbox').classList.add('hidden');
+}
+
+function removeImage() {
+    if (selectedNode) {
+        selectedNode.image = '';
+        updateImage('', selectedNode.name);
+    } else if (currentSatellite) {
+        currentSatellite.image = '';
+        updateImage('', currentSatellite.name);
+    }
+    saveData();
+    closeLightbox();
+    showToast('Image removed', 'success');
+}
+
 // ==================== IMAGE UPLOAD ====================
 function uploadImage(file) {
     // Check file size (limit to 2MB for localStorage)
@@ -407,15 +433,18 @@ function updateImage(imagePath, caption) {
     var previewImage = document.getElementById('preview-image');
     var imageCaption = document.getElementById('image-caption');
     var placeholder = document.querySelector('.no-image-placeholder');
+    var imagePanel = document.getElementById('image-panel');
 
     if (imagePath) {
         previewImage.src = imagePath;
         previewImage.style.display = 'block';
         if (placeholder) placeholder.style.display = 'none';
+        imagePanel.classList.remove('collapsed');
     } else {
         previewImage.style.display = 'none';
         previewImage.src = '';
         if (placeholder) placeholder.style.display = 'flex';
+        imagePanel.classList.add('collapsed');
     }
 
     imageCaption.textContent = caption || '';
@@ -788,8 +817,253 @@ function showToast(message, type) {
     }, 3000);
 }
 
+// ==================== SEARCH ====================
+function buildSearchIndex() {
+    var results = [];
+
+    function crawl(node, satIndex, path, pathNames) {
+        var entry = {
+            name: node.name || '',
+            icon: node.icon || '📦',
+            type: node.type || '',
+            description: node.description || '',
+            satIndex: satIndex,
+            path: path.slice(),
+            pathLabel: pathNames.join(' › ')
+        };
+        results.push(entry);
+
+        if (node.modules) {
+            for (var i = 0; i < node.modules.length; i++) {
+                var child = node.modules[i];
+                var newPath = path.concat([i]);
+                var newNames = pathNames.concat([child.name]);
+                crawl(child, satIndex, newPath, newNames);
+            }
+        }
+    }
+
+    for (var s = 0; s < satellites.length; s++) {
+        crawl(satellites[s], s, [], [satellites[s].name]);
+    }
+
+    return results;
+}
+
+function searchSatellites(query) {
+    if (!query || query.length < 2) return [];
+
+    var index = buildSearchIndex();
+    var terms = query.toLowerCase().split(/\s+/).filter(function(t) { return t.length > 0; });
+    var scored = [];
+
+    for (var i = 0; i < index.length; i++) {
+        var entry = index[i];
+        var nameLower = entry.name.toLowerCase();
+        var typeLower = entry.type.toLowerCase();
+        // Strip markdown for searching
+        var descLower = entry.description.toLowerCase().replace(/\*\*/g, '').replace(/\*/g, '');
+        var score = 0;
+
+        var allMatch = true;
+        for (var t = 0; t < terms.length; t++) {
+            var term = terms[t];
+            var found = false;
+
+            if (nameLower.indexOf(term) !== -1) {
+                score += 10;
+                if (nameLower === term) score += 5;
+                found = true;
+            }
+            if (typeLower.indexOf(term) !== -1) {
+                score += 5;
+                found = true;
+            }
+            if (descLower.indexOf(term) !== -1) {
+                score += 2;
+                found = true;
+            }
+
+            if (!found) { allMatch = false; break; }
+        }
+
+        if (allMatch && score > 0) {
+            // Boost top-level satellites
+            if (entry.path.length === 0) score += 3;
+            scored.push({ entry: entry, score: score });
+        }
+    }
+
+    scored.sort(function(a, b) { return b.score - a.score; });
+    return scored.slice(0, 15);
+}
+
+function highlightText(text, query) {
+    var terms = query.toLowerCase().split(/\s+/).filter(function(t) { return t.length > 0; });
+    var escaped = text;
+    // Sort terms longest first to avoid partial replacement issues
+    terms.sort(function(a, b) { return b.length - a.length; });
+
+    for (var i = 0; i < terms.length; i++) {
+        var regex = new RegExp('(' + terms[i].replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'gi');
+        escaped = escaped.replace(regex, '<mark>$1</mark>');
+    }
+    return escaped;
+}
+
+function getSnippet(description, query) {
+    var clean = description.replace(/\*\*/g, '').replace(/\*/g, '').replace(/\n/g, ' ');
+    var terms = query.toLowerCase().split(/\s+/).filter(function(t) { return t.length > 0; });
+
+    // Find the first match position
+    var pos = -1;
+    for (var i = 0; i < terms.length; i++) {
+        var idx = clean.toLowerCase().indexOf(terms[i]);
+        if (idx !== -1 && (pos === -1 || idx < pos)) pos = idx;
+    }
+
+    if (pos === -1) {
+        return clean.substring(0, 120) + (clean.length > 120 ? '...' : '');
+    }
+
+    var start = Math.max(0, pos - 40);
+    var end = Math.min(clean.length, pos + 100);
+    var snippet = (start > 0 ? '...' : '') + clean.substring(start, end) + (end < clean.length ? '...' : '');
+    return highlightText(snippet, query);
+}
+
+function renderSearchResults(query) {
+    var container = document.getElementById('search-results');
+    var clearBtn = document.getElementById('search-clear');
+
+    if (!query || query.trim().length < 2) {
+        container.classList.add('hidden');
+        clearBtn.classList.toggle('hidden', !query);
+        return;
+    }
+
+    clearBtn.classList.remove('hidden');
+    var results = searchSatellites(query);
+
+    if (results.length === 0) {
+        container.innerHTML = '<div class="search-no-results">No results for "' + query.replace(/</g, '&lt;') + '"</div>';
+        container.classList.remove('hidden');
+        return;
+    }
+
+    var html = '';
+    for (var i = 0; i < results.length; i++) {
+        var r = results[i].entry;
+        html += '<div class="search-result-item" data-sat-index="' + r.satIndex + '" data-path="' + r.path.join(',') + '">';
+        html += '<div class="search-result-icon">' + r.icon + '</div>';
+        html += '<div class="search-result-info">';
+        html += '<div class="search-result-name">' + highlightText(r.name, query) + '</div>';
+        if (r.path.length > 0) {
+            html += '<div class="search-result-path">' + r.pathLabel + '</div>';
+        }
+        if (r.description) {
+            html += '<div class="search-result-snippet">' + getSnippet(r.description, query) + '</div>';
+        }
+        html += '</div>';
+        if (r.type) {
+            html += '<div class="search-result-type">' + r.type + '</div>';
+        }
+        html += '</div>';
+    }
+    container.innerHTML = html;
+    container.classList.remove('hidden');
+
+    // Add click handlers
+    var items = container.querySelectorAll('.search-result-item');
+    for (var j = 0; j < items.length; j++) {
+        (function(item) {
+            item.onclick = function() {
+                var satIndex = parseInt(this.getAttribute('data-sat-index'));
+                var pathStr = this.getAttribute('data-path');
+                var path = pathStr ? pathStr.split(',').map(Number) : [];
+
+                // Clear search
+                document.getElementById('search-input').value = '';
+                container.classList.add('hidden');
+                document.getElementById('search-clear').classList.add('hidden');
+
+                // Navigate to the satellite
+                selectSatellite(satIndex);
+
+                // Drill down through the path (skip index 0 which is the satellite root)
+                if (path.length > 0) {
+                    var modules = currentSatellite.modules || [];
+                    for (var p = 0; p < path.length; p++) {
+                        var idx = path[p];
+                        var node = modules[idx];
+                        if (!node) break;
+
+                        if (p < path.length - 1) {
+                            // Intermediate node: drill down
+                            drillDown(node, idx);
+                            modules = node.modules || [];
+                        } else {
+                            // Final node: select it
+                            selectedNode = node;
+                            selectedNodeIndex = idx;
+                            updateInfo(node.name, node.description);
+                            updateImage(node.image, node.name);
+
+                            if (node.modules && node.modules.length > 0) {
+                                drillDown(node, idx);
+                            } else {
+                                selectNodeVisually(idx);
+                            }
+                        }
+                    }
+                }
+            };
+        })(items[j]);
+    }
+}
+
+function setupSearch() {
+    var input = document.getElementById('search-input');
+    var clearBtn = document.getElementById('search-clear');
+    var resultsContainer = document.getElementById('search-results');
+    var debounceTimer = null;
+
+    input.addEventListener('input', function() {
+        clearTimeout(debounceTimer);
+        var query = input.value;
+        debounceTimer = setTimeout(function() {
+            renderSearchResults(query);
+        }, 150);
+    });
+
+    clearBtn.onclick = function() {
+        input.value = '';
+        resultsContainer.classList.add('hidden');
+        clearBtn.classList.add('hidden');
+        input.focus();
+    };
+
+    // Close results when clicking outside
+    document.addEventListener('click', function(e) {
+        var searchContainer = document.querySelector('.search-container');
+        if (!searchContainer.contains(e.target)) {
+            resultsContainer.classList.add('hidden');
+        }
+    });
+
+    // Reopen results on focus if there's a query
+    input.addEventListener('focus', function() {
+        if (input.value.trim().length >= 2) {
+            renderSearchResults(input.value);
+        }
+    });
+}
+
 // ==================== EVENT LISTENERS ====================
 function setupEventListeners() {
+    // Search
+    setupSearch();
+
     // Home screen buttons
     document.getElementById('add-satellite-btn').onclick = function() {
         openEditModal('new-satellite');
@@ -851,6 +1125,11 @@ function setupEventListeners() {
         }
     };
 
+    // Image lightbox
+    document.getElementById('preview-image').onclick = function() {
+        openLightbox();
+    };
+
     // Expanded overlay
     document.getElementById('expanded-overlay').onclick = function(e) {
         if (e.target === this) collapseInfo();
@@ -889,12 +1168,15 @@ function setupEventListeners() {
     // Keyboard
     document.onkeydown = function(e) {
         if (e.key === 'Escape') {
+            var lightbox = document.getElementById('image-lightbox');
             var editModal = document.getElementById('edit-modal');
             var confirmModal = document.getElementById('confirm-modal');
             var expandedOverlay = document.getElementById('expanded-overlay');
             var detailScreen = document.getElementById('detail-screen');
 
-            if (!editModal.classList.contains('hidden')) {
+            if (!lightbox.classList.contains('hidden')) {
+                closeLightbox();
+            } else if (!editModal.classList.contains('hidden')) {
                 closeEditModal();
             } else if (!confirmModal.classList.contains('hidden')) {
                 closeConfirmModal();
