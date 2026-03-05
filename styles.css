@@ -223,6 +223,64 @@ body {
     color: var(--text-muted);
 }
 
+/* ==================== CATEGORY SECTIONS ==================== */
+.category-sections {
+    display: flex;
+    justify-content: center;
+    gap: 30px;
+    margin-top: 50px;
+    flex-wrap: wrap;
+}
+
+.category-bubble {
+    width: 180px;
+    height: 180px;
+    border-radius: 50%;
+    background: var(--bubble-gradient);
+    border: 2px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    text-align: center;
+    padding: 20px;
+    position: relative;
+    overflow: hidden;
+}
+
+.category-bubble::before {
+    content: '';
+    position: absolute;
+    inset: -2px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent), var(--accent-secondary));
+    z-index: -1;
+    opacity: 0;
+    transition: opacity 0.3s;
+}
+
+.category-bubble:hover {
+    transform: scale(1.1);
+    border-color: transparent;
+}
+
+.category-bubble:hover::before {
+    opacity: 1;
+}
+
+.category-bubble .icon {
+    font-size: 2.5rem;
+    margin-bottom: 10px;
+}
+
+.category-bubble .name {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
 /* ==================== BUBBLES ==================== */
 .bubbles-container {
     display: flex;
@@ -840,6 +898,26 @@ body {
 
     .subtitle {
         font-size: 1rem;
+    }
+
+    .category-sections {
+        margin-top: 30px;
+        gap: 15px;
+    }
+
+    .category-bubble {
+        width: 120px;
+        height: 120px;
+        padding: 15px;
+    }
+
+    .category-bubble .icon {
+        font-size: 2rem;
+        margin-bottom: 6px;
+    }
+
+    .category-bubble .name {
+        font-size: 0.8rem;
     }
 
     .search-container {

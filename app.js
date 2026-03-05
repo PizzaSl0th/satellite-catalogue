@@ -10,11 +10,16 @@
 
 // ==================== CONFIGURATION ====================
 const STORAGE_KEY = 'satellite-catalogue-edits';
+const PROCEDURES_STORAGE_KEY = 'satellite-catalogue-procedures-edits';
+const ALARMS_STORAGE_KEY = 'satellite-catalogue-alarms-edits';
 
 // ==================== STATE ====================
 let satellites = [];
+let procedures = [];
+let alarms = [];
 let currentSatellite = null;
 let currentSatelliteIndex = -1;
+let currentDataSource = 'satellites'; // 'satellites', 'procedures', or 'alarms'
 let currentPath = [];
 let selectedNode = null;
 let selectedNodeIndex = -1;
@@ -28,6 +33,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 function initializeApp() {
     loadData();
+    loadCategoryData();
     renderSatelliteBubbles();
     setupEventListeners();
 }
@@ -107,6 +113,91 @@ function saveData() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(edits));
 }
 
+function loadCategoryData() {
+    // Load procedures
+    procedures = JSON.parse(JSON.stringify(PROCEDURE_FILES));
+    _applyCategoryEdits(procedures, PROCEDURE_FILES, PROCEDURES_STORAGE_KEY);
+
+    // Load alarms
+    alarms = JSON.parse(JSON.stringify(ALARM_FILES));
+    _applyCategoryEdits(alarms, ALARM_FILES, ALARMS_STORAGE_KEY);
+}
+
+function _applyCategoryEdits(dataArray, filesArray, storageKey) {
+    var stored = localStorage.getItem(storageKey);
+    if (!stored) return;
+    try {
+        var edits = JSON.parse(stored);
+        if (edits.modified) {
+            edits.modified.forEach(function(mod) {
+                var index = dataArray.findIndex(function(s) { return s.id === mod.id; });
+                if (index > -1) dataArray[index] = mod;
+            });
+        }
+        if (edits.added) {
+            edits.added.forEach(function(item) {
+                if (!dataArray.find(function(s) { return s.id === item.id; })) {
+                    dataArray.push(item);
+                }
+            });
+        }
+        if (edits.deleted) {
+            edits.deleted.forEach(function(id) {
+                var index = dataArray.findIndex(function(s) { return s.id === id; });
+                if (index > -1) dataArray.splice(index, 1);
+            });
+        }
+    } catch (e) {
+        console.error('Failed to load category edits:', e);
+    }
+}
+
+function saveCategoryData(category) {
+    var dataArray, filesArray, storageKey;
+    if (category === 'procedures') {
+        dataArray = procedures; filesArray = PROCEDURE_FILES; storageKey = PROCEDURES_STORAGE_KEY;
+    } else {
+        dataArray = alarms; filesArray = ALARM_FILES; storageKey = ALARMS_STORAGE_KEY;
+    }
+
+    var edits = { modified: [], added: [], deleted: [] };
+
+    dataArray.forEach(function(item) {
+        var original = filesArray.find(function(s) { return s.id === item.id; });
+        if (!original) {
+            edits.added.push(item);
+        } else if (JSON.stringify(item) !== JSON.stringify(original)) {
+            edits.modified.push(item);
+        }
+    });
+
+    filesArray.forEach(function(original) {
+        if (!dataArray.find(function(s) { return s.id === original.id; })) {
+            edits.deleted.push(original.id);
+        }
+    });
+
+    localStorage.setItem(storageKey, JSON.stringify(edits));
+}
+
+function getCurrentDataArray() {
+    if (currentDataSource === 'procedures') return procedures;
+    if (currentDataSource === 'alarms') return alarms;
+    return satellites;
+}
+
+function getCurrentFilesArray() {
+    if (currentDataSource === 'procedures') return PROCEDURE_FILES;
+    if (currentDataSource === 'alarms') return ALARM_FILES;
+    return SATELLITE_FILES;
+}
+
+function saveCurrentData() {
+    if (currentDataSource === 'procedures') { saveCategoryData('procedures'); return; }
+    if (currentDataSource === 'alarms') { saveCategoryData('alarms'); return; }
+    saveData();
+}
+
 function generateId() {
     return 'sat-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
 }
@@ -132,7 +223,7 @@ function removeImage() {
         currentSatellite.image = '';
         updateImage('', currentSatellite.name);
     }
-    saveData();
+    saveCurrentData();
     closeLightbox();
     showToast('Image removed', 'success');
 }
@@ -160,7 +251,7 @@ function uploadImage(file) {
             updateImage(imageData, currentSatellite.name);
         }
 
-        saveData();
+        saveCurrentData();
         showToast('Image uploaded!', 'success');
     };
     reader.onerror = function() {
@@ -232,15 +323,17 @@ function renderSatelliteBubbles() {
         (function(bubble) {
             bubble.onclick = function() {
                 var index = parseInt(this.getAttribute('data-index'));
-                selectSatellite(index);
+                selectSatellite(index, 'satellites');
             };
         })(bubbles[j]);
     }
 }
 
 // ==================== SELECT SATELLITE ====================
-function selectSatellite(index) {
-    currentSatellite = satellites[index];
+function selectSatellite(index, source) {
+    currentDataSource = source || 'satellites';
+    var dataArray = getCurrentDataArray();
+    currentSatellite = dataArray[index];
     currentSatelliteIndex = index;
     currentPath = [];
     selectedNode = null;
@@ -655,7 +748,7 @@ function saveEdit() {
             modules: []
         };
         parent.modules.push(newModule);
-        saveData();
+        saveCurrentData();
         renderTree(parent.modules);
         showToast('Module added!', 'success');
 
@@ -672,7 +765,7 @@ function saveEdit() {
             modules: []
         };
         selectedNode.modules.push(newSubcomponent);
-        saveData();
+        saveCurrentData();
 
         // Re-render current tree
         var currentModules = getCurrentModules();
@@ -685,7 +778,7 @@ function saveEdit() {
         currentSatellite.type = type;
         currentSatellite.image = image;
         currentSatellite.description = description;
-        saveData();
+        saveCurrentData();
 
         var headerBubble = document.getElementById('header-bubble');
         headerBubble.innerHTML = '<span class="icon">' + icon + '</span><span class="name">' + name + '</span>';
@@ -703,7 +796,7 @@ function saveEdit() {
         selectedNode.type = type;
         selectedNode.image = image;
         selectedNode.description = description;
-        saveData();
+        saveCurrentData();
 
         var modules = getCurrentModules();
         renderTree(modules);
@@ -742,8 +835,9 @@ function confirmDeleteAction() {
 
 function deleteSatellite() {
     openConfirmModal('Delete "' + currentSatellite.name + '" and all its modules?', function() {
-        satellites.splice(currentSatelliteIndex, 1);
-        saveData();
+        var dataArray = getCurrentDataArray();
+        dataArray.splice(currentSatelliteIndex, 1);
+        saveCurrentData();
         goBack();
         renderSatelliteBubbles();
         showToast('Deleted', 'success');
@@ -769,7 +863,7 @@ function deleteSelectedModule() {
             var parent = getCurrentParent();
             if (parent.modules) {
                 parent.modules.splice(indexToDelete, 1);
-                saveData();
+                saveCurrentData();
                 renderTree(parent.modules || []);
                 updateBreadcrumb();
                 selectedNode = null;
@@ -783,7 +877,7 @@ function deleteSelectedModule() {
             var parent = getCurrentParent();
             if (parent.modules) {
                 parent.modules.splice(selectedNodeIndex, 1);
-                saveData();
+                saveCurrentData();
                 renderTree(parent.modules);
                 selectedNode = null;
                 selectedNodeIndex = -1;
@@ -798,6 +892,7 @@ function deleteSelectedModule() {
 function goBack() {
     currentSatellite = null;
     currentSatelliteIndex = -1;
+    currentDataSource = 'satellites';
     currentPath = [];
     selectedNode = null;
     selectedNodeIndex = -1;
@@ -821,13 +916,14 @@ function showToast(message, type) {
 function buildSearchIndex() {
     var results = [];
 
-    function crawl(node, satIndex, path, pathNames) {
+    function crawl(node, satIndex, path, pathNames, source) {
         var entry = {
             name: node.name || '',
             icon: node.icon || '📦',
             type: node.type || '',
             description: node.description || '',
             satIndex: satIndex,
+            source: source,
             path: path.slice(),
             pathLabel: pathNames.join(' › ')
         };
@@ -838,13 +934,19 @@ function buildSearchIndex() {
                 var child = node.modules[i];
                 var newPath = path.concat([i]);
                 var newNames = pathNames.concat([child.name]);
-                crawl(child, satIndex, newPath, newNames);
+                crawl(child, satIndex, newPath, newNames, source);
             }
         }
     }
 
     for (var s = 0; s < satellites.length; s++) {
-        crawl(satellites[s], s, [], [satellites[s].name]);
+        crawl(satellites[s], s, [], [satellites[s].name], 'satellites');
+    }
+    for (var p = 0; p < procedures.length; p++) {
+        crawl(procedures[p], p, [], ['Procedures', procedures[p].name], 'procedures');
+    }
+    for (var a = 0; a < alarms.length; a++) {
+        crawl(alarms[a], a, [], ['Alarms', alarms[a].name], 'alarms');
     }
 
     return results;
@@ -954,7 +1056,7 @@ function renderSearchResults(query) {
     var html = '';
     for (var i = 0; i < results.length; i++) {
         var r = results[i].entry;
-        html += '<div class="search-result-item" data-sat-index="' + r.satIndex + '" data-path="' + r.path.join(',') + '">';
+        html += '<div class="search-result-item" data-sat-index="' + r.satIndex + '" data-source="' + r.source + '" data-path="' + r.path.join(',') + '">';
         html += '<div class="search-result-icon">' + r.icon + '</div>';
         html += '<div class="search-result-info">';
         html += '<div class="search-result-name">' + highlightText(r.name, query) + '</div>';
@@ -979,6 +1081,7 @@ function renderSearchResults(query) {
         (function(item) {
             item.onclick = function() {
                 var satIndex = parseInt(this.getAttribute('data-sat-index'));
+                var source = this.getAttribute('data-source');
                 var pathStr = this.getAttribute('data-path');
                 var path = pathStr ? pathStr.split(',').map(Number) : [];
 
@@ -987,8 +1090,8 @@ function renderSearchResults(query) {
                 container.classList.add('hidden');
                 document.getElementById('search-clear').classList.add('hidden');
 
-                // Navigate to the satellite
-                selectSatellite(satIndex);
+                // Navigate to the satellite/procedure/alarm
+                selectSatellite(satIndex, source);
 
                 // Drill down through the path (skip index 0 which is the satellite root)
                 if (path.length > 0) {
@@ -1063,6 +1166,17 @@ function setupSearch() {
 function setupEventListeners() {
     // Search
     setupSearch();
+
+    // Category bubbles — go directly to detail screen
+    var categoryBubbles = document.querySelectorAll('.category-bubble');
+    for (var c = 0; c < categoryBubbles.length; c++) {
+        (function(bubble) {
+            bubble.onclick = function() {
+                var category = this.getAttribute('data-category');
+                selectSatellite(0, category);
+            };
+        })(categoryBubbles[c]);
+    }
 
     // Home screen buttons
     document.getElementById('add-satellite-btn').onclick = function() {
