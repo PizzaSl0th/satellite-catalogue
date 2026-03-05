@@ -1259,10 +1259,11 @@ function setupEventListeners() {
     };
 
     document.getElementById('delete-in-modal').onclick = function() {
+        var target = editTarget;
         closeEditModal();
-        if (editTarget === 'satellite') {
+        if (target === 'satellite') {
             deleteSatellite();
-        } else if (editTarget === 'module') {
+        } else if (target === 'module') {
             deleteSelectedModule();
         }
     };
