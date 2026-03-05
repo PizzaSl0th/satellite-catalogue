@@ -10,10 +10,12 @@
  *    (add it AFTER _loader.js but BEFORE app.js)
  * 5. Refresh the browser
  *
- * FORMATTING TIPS:
- * - Use **text** for bold
- * - Use *text* for italic
- * - Use - at the start of a line for bullet points
+ * FORMATTING:
+ * - Legacy: Use **text** for bold, *text* for italic, - for bullets
+ * - Rich text: Use the Expand → Edit button for WYSIWYG editing
+ *   (bold, italic, headings, lists, images, LaTeX formulas)
+ * - When edited via the rich text editor, descriptions are stored as HTML
+ *   and the field descriptionFormat is set to "html"
  * - Use template literals (`backticks`) for multi-line descriptions
  *
  * NESTING:
@@ -37,7 +39,8 @@ registerSatellite({
     // Image path (optional) - put images in the images/ folder
     image: "",
 
-    // Main description (supports **bold** and *italic*)
+    // Main description (supports **bold**, *italic*, or HTML via rich text editor)
+    // descriptionFormat: "html" — set automatically when saved from the rich text editor
     description: `This is the main description of the satellite.
 
 You can use multiple paragraphs.

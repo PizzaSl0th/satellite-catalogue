@@ -349,7 +349,7 @@ function selectSatellite(index, source) {
 
     // Initialize view
     updateImage(currentSatellite.image, currentSatellite.name);
-    updateInfo(currentSatellite.name, currentSatellite.description);
+    updateInfo(currentSatellite.name, currentSatellite.description, currentSatellite.descriptionFormat);
     renderTree(currentSatellite.modules || []);
     updateBreadcrumb();
 }
@@ -391,7 +391,7 @@ function renderTree(nodes) {
                 // Always update info panel with clicked node
                 selectedNode = node;
                 selectedNodeIndex = index;
-                updateInfo(node.name, node.description);
+                updateInfo(node.name, node.description, node.descriptionFormat);
                 updateImage(node.image, node.name);
 
                 // Drill down if has children
@@ -507,7 +507,7 @@ function navigateToLevel(level) {
         currentPath = [];
         renderTree(currentSatellite.modules || []);
         updateImage(currentSatellite.image, currentSatellite.name);
-        updateInfo(currentSatellite.name, currentSatellite.description);
+        updateInfo(currentSatellite.name, currentSatellite.description, currentSatellite.descriptionFormat);
     } else {
         currentPath = currentPath.slice(0, level + 1);
         var modules = getCurrentModules();
@@ -515,7 +515,7 @@ function navigateToLevel(level) {
 
         var parent = getCurrentParent();
         updateImage(parent.image, parent.name);
-        updateInfo(parent.name, parent.description);
+        updateInfo(parent.name, parent.description, parent.descriptionFormat);
     }
 
     updateBreadcrumb();
@@ -559,30 +559,61 @@ function updateEditButtonVisibility() {
 }
 
 // ==================== UPDATE INFO ====================
-function updateInfo(title, description) {
+function renderMarkdownToHtml(description) {
+    var html = description
+        .replace(/\n\n/g, '</p><p>')
+        .replace(/\n/g, '<br>')
+        .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+        .replace(/\*([^*]+)\*/g, '<em>$1</em>')
+        .replace(/^- (.*)$/gm, '<li>$1</li>');
+
+    html = html.replace(/(<li>[^<]*<\/li>)+/g, '<ul>$&</ul>');
+    return '<p>' + html + '</p>';
+}
+
+function updateInfo(title, description, format) {
     document.getElementById('info-title').textContent = title;
     updateEditButtonVisibility();
 
     var infoText = document.getElementById('info-text');
     if (description) {
-        var html = description
-            .replace(/\n\n/g, '</p><p>')
-            .replace(/\n/g, '<br>')
-            .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-            .replace(/\*([^*]+)\*/g, '<em>$1</em>')
-            .replace(/^- (.*)$/gm, '<li>$1</li>');
-
-        html = html.replace(/(<li>[^<]*<\/li>)+/g, '<ul>$&</ul>');
-        infoText.innerHTML = '<p>' + html + '</p>';
+        if (format === 'html') {
+            infoText.innerHTML = description;
+        } else {
+            infoText.innerHTML = renderMarkdownToHtml(description);
+        }
+        renderKaTeX(infoText);
     } else {
         infoText.innerHTML = '<p><em>No description. Click edit to add one.</em></p>';
     }
 }
 
+function renderKaTeX(element) {
+    if (typeof renderMathInElement === 'function') {
+        try {
+            renderMathInElement(element, {
+                delimiters: [
+                    { left: '$$', right: '$$', display: true },
+                    { left: '$', right: '$', display: false },
+                    { left: '\\(', right: '\\)', display: false },
+                    { left: '\\[', right: '\\]', display: true }
+                ],
+                throwOnError: false
+            });
+        } catch (e) {
+            // KaTeX not loaded or error, silently continue
+        }
+    }
+}
+
 // ==================== EXPAND / COLLAPSE ====================
 function expandInfo() {
+    // Exit edit mode if open
+    exitEditMode();
+
     document.getElementById('expanded-title').textContent = document.getElementById('info-title').textContent;
     document.getElementById('expanded-text').innerHTML = document.getElementById('info-text').innerHTML;
+    renderKaTeX(document.getElementById('expanded-text'));
 
     var pathTree = document.getElementById('path-tree');
 
@@ -641,6 +672,7 @@ function expandInfo() {
 }
 
 function collapseInfo() {
+    exitEditMode();
     document.getElementById('expanded-overlay').classList.add('hidden');
 }
 
@@ -784,7 +816,7 @@ function saveEdit() {
         headerBubble.innerHTML = '<span class="icon">' + icon + '</span><span class="name">' + name + '</span>';
 
         if (currentPath.length === 0 && !selectedNode) {
-            updateInfo(name, description);
+            updateInfo(name, description, currentSatellite.descriptionFormat);
             updateImage(image, name);
         }
         updateBreadcrumb();
@@ -800,7 +832,7 @@ function saveEdit() {
 
         var modules = getCurrentModules();
         renderTree(modules);
-        updateInfo(name, description);
+        updateInfo(name, description, selectedNode.descriptionFormat);
         updateImage(image, name);
 
         setTimeout(function() {
@@ -868,7 +900,7 @@ function deleteSelectedModule() {
                 updateBreadcrumb();
                 selectedNode = null;
                 selectedNodeIndex = -1;
-                updateInfo(parent.name, parent.description);
+                updateInfo(parent.name, parent.description, parent.descriptionFormat);
                 updateImage(parent.image, parent.name);
                 showToast('Deleted', 'success');
             }
@@ -881,7 +913,7 @@ function deleteSelectedModule() {
                 renderTree(parent.modules);
                 selectedNode = null;
                 selectedNodeIndex = -1;
-                updateInfo(parent.name, parent.description);
+                updateInfo(parent.name, parent.description, parent.descriptionFormat);
                 showToast('Deleted', 'success');
             }
         }
@@ -1109,7 +1141,7 @@ function renderSearchResults(query) {
                             // Final node: select it
                             selectedNode = node;
                             selectedNodeIndex = idx;
-                            updateInfo(node.name, node.description);
+                            updateInfo(node.name, node.description, node.descriptionFormat);
                             updateImage(node.image, node.name);
 
                             if (node.modules && node.modules.length > 0) {
@@ -1160,6 +1192,161 @@ function setupSearch() {
             renderSearchResults(input.value);
         }
     });
+}
+
+// ==================== RICH TEXT EDITOR (QUILL) ====================
+var quillEditor = null;
+var isEditingRichText = false;
+
+function initQuillEditor() {
+    if (quillEditor) return quillEditor;
+
+    var toolbarOptions = [
+        [{ 'header': [1, 2, 3, false] }],
+        ['bold', 'italic', 'underline', 'strike'],
+        ['blockquote', 'code-block'],
+        [{ 'list': 'ordered' }, { 'list': 'bullet' }],
+        ['link', 'image', 'formula'],
+        ['clean']
+    ];
+
+    quillEditor = new Quill('#quill-editor', {
+        theme: 'snow',
+        modules: {
+            toolbar: {
+                container: toolbarOptions,
+                handlers: {
+                    image: quillImageHandler
+                }
+            },
+            formula: true
+        },
+        placeholder: 'Write your description here...'
+    });
+
+    // Paste handler for images
+    quillEditor.root.addEventListener('paste', function(e) {
+        var clipboardData = e.clipboardData || window.clipboardData;
+        if (!clipboardData || !clipboardData.items) return;
+
+        for (var i = 0; i < clipboardData.items.length; i++) {
+            var item = clipboardData.items[i];
+            if (item.type.indexOf('image') !== -1) {
+                e.preventDefault();
+                var file = item.getAsFile();
+                insertImageAsBase64(file);
+                return;
+            }
+        }
+    });
+
+    return quillEditor;
+}
+
+function quillImageHandler() {
+    var input = document.createElement('input');
+    input.setAttribute('type', 'file');
+    input.setAttribute('accept', 'image/*');
+    input.click();
+
+    input.onchange = function() {
+        if (input.files && input.files[0]) {
+            insertImageAsBase64(input.files[0]);
+        }
+    };
+}
+
+function insertImageAsBase64(file) {
+    if (file.size > 2 * 1024 * 1024) {
+        showToast('Image too large (max 2MB)', 'error');
+        return;
+    }
+
+    var reader = new FileReader();
+    reader.onload = function(e) {
+        var range = quillEditor.getSelection(true);
+        quillEditor.insertEmbed(range.index, 'image', e.target.result);
+        quillEditor.setSelection(range.index + 1);
+    };
+    reader.readAsDataURL(file);
+}
+
+function enterEditMode() {
+    if (isEditingRichText) return;
+    isEditingRichText = true;
+
+    var editor = initQuillEditor();
+
+    // Get current node
+    var node = getEditableNode();
+    if (!node) return;
+
+    // Load content into editor
+    if (node.descriptionFormat === 'html') {
+        editor.root.innerHTML = node.description || '';
+    } else {
+        // Convert markdown to HTML for editing
+        var html = node.description ? renderMarkdownToHtml(node.description) : '';
+        editor.root.innerHTML = html;
+    }
+
+    // Show editor, hide read-only
+    document.getElementById('expanded-text').classList.add('hidden');
+    document.getElementById('quill-editor-container').classList.remove('hidden');
+
+    // Toggle buttons
+    document.getElementById('edit-richtext-btn').classList.add('hidden');
+    document.getElementById('save-richtext-btn').classList.remove('hidden');
+    document.getElementById('cancel-richtext-btn').classList.remove('hidden');
+}
+
+function saveFromEditor() {
+    if (!quillEditor || !isEditingRichText) return;
+
+    var node = getEditableNode();
+    if (!node) return;
+
+    // Get HTML content from Quill
+    var htmlContent = quillEditor.root.innerHTML;
+
+    // Clean up empty editor content
+    if (htmlContent === '<p><br></p>') {
+        htmlContent = '';
+    }
+
+    // Save as HTML
+    node.description = htmlContent;
+    node.descriptionFormat = 'html';
+
+    saveCurrentData();
+
+    // Update read-only views
+    updateInfo(node.name, node.description, node.descriptionFormat);
+    document.getElementById('expanded-text').innerHTML = node.description;
+    renderKaTeX(document.getElementById('expanded-text'));
+
+    exitEditMode();
+    showToast('Saved!', 'success');
+}
+
+function exitEditMode() {
+    if (!isEditingRichText) return;
+    isEditingRichText = false;
+
+    // Show read-only, hide editor
+    document.getElementById('expanded-text').classList.remove('hidden');
+    document.getElementById('quill-editor-container').classList.add('hidden');
+
+    // Toggle buttons
+    document.getElementById('edit-richtext-btn').classList.remove('hidden');
+    document.getElementById('save-richtext-btn').classList.add('hidden');
+    document.getElementById('cancel-richtext-btn').classList.add('hidden');
+}
+
+function getEditableNode() {
+    if (selectedNode) return selectedNode;
+    if (currentSatellite) return currentSatellite;
+    return null;
 }
 
 // ==================== EVENT LISTENERS ====================
@@ -1242,6 +1429,19 @@ function setupEventListeners() {
     // Image lightbox
     document.getElementById('preview-image').onclick = function() {
         openLightbox();
+    };
+
+    // Rich text editor buttons
+    document.getElementById('edit-richtext-btn').onclick = enterEditMode;
+    document.getElementById('save-richtext-btn').onclick = saveFromEditor;
+    document.getElementById('cancel-richtext-btn').onclick = function() {
+        exitEditMode();
+        // Restore read-only content
+        var node = getEditableNode();
+        if (node) {
+            document.getElementById('expanded-text').innerHTML = document.getElementById('info-text').innerHTML;
+            renderKaTeX(document.getElementById('expanded-text'));
+        }
     };
 
     // Expanded overlay

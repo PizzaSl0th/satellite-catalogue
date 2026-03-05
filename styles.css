@@ -24,6 +24,11 @@ body {
     overflow-x: hidden;
 }
 
+/* ==================== UTILITY ==================== */
+.hidden {
+    display: none !important;
+}
+
 /* ==================== SCREENS ==================== */
 .screen {
     display: none;
@@ -730,6 +735,10 @@ body {
     min-height: 0;
 }
 
+.expanded-text.hidden {
+    display: none;
+}
+
 .expanded-text p {
     margin-bottom: 20px;
 }
@@ -783,6 +792,200 @@ body {
 
 .path-tree .path-node.current .path-name {
     color: var(--accent);
+}
+
+/* ==================== EXPANDED HEADER ACTIONS ==================== */
+.expanded-header-actions {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+/* ==================== QUILL EDITOR (DARK THEME) ==================== */
+.quill-editor-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    border-radius: 15px;
+    overflow: hidden;
+    border: 1px solid var(--border-color);
+}
+
+.quill-editor-container.hidden {
+    display: none;
+}
+
+/* Toolbar */
+.quill-editor-container .ql-toolbar.ql-snow {
+    background: var(--bg-panel);
+    border: none;
+    border-bottom: 1px solid var(--border-color);
+    flex-shrink: 0;
+}
+
+.quill-editor-container .ql-toolbar .ql-stroke {
+    stroke: var(--text-secondary);
+}
+
+.quill-editor-container .ql-toolbar .ql-fill {
+    fill: var(--text-secondary);
+}
+
+.quill-editor-container .ql-toolbar .ql-picker-label {
+    color: var(--text-secondary);
+}
+
+.quill-editor-container .ql-toolbar button:hover .ql-stroke,
+.quill-editor-container .ql-toolbar .ql-picker-label:hover .ql-stroke {
+    stroke: var(--accent);
+}
+
+.quill-editor-container .ql-toolbar button:hover .ql-fill,
+.quill-editor-container .ql-toolbar .ql-picker-label:hover .ql-fill {
+    fill: var(--accent);
+}
+
+.quill-editor-container .ql-toolbar button:hover,
+.quill-editor-container .ql-toolbar .ql-picker-label:hover {
+    color: var(--accent);
+}
+
+.quill-editor-container .ql-toolbar button.ql-active .ql-stroke {
+    stroke: var(--accent);
+}
+
+.quill-editor-container .ql-toolbar button.ql-active .ql-fill {
+    fill: var(--accent);
+}
+
+.quill-editor-container .ql-toolbar button.ql-active {
+    color: var(--accent);
+}
+
+.quill-editor-container .ql-toolbar .ql-picker-label.ql-active {
+    color: var(--accent);
+}
+
+.quill-editor-container .ql-toolbar .ql-picker-label.ql-active .ql-stroke {
+    stroke: var(--accent);
+}
+
+/* Picker dropdowns */
+.quill-editor-container .ql-toolbar .ql-picker-options {
+    background: var(--bg-panel);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+.quill-editor-container .ql-toolbar .ql-picker-item {
+    color: var(--text-secondary);
+}
+
+.quill-editor-container .ql-toolbar .ql-picker-item:hover {
+    color: var(--accent);
+}
+
+/* Editor area */
+.quill-editor-container .ql-container.ql-snow {
+    background: var(--bg-panel);
+    border: none;
+    flex: 1;
+    overflow-y: auto;
+    font-size: 1.1rem;
+    color: var(--text-secondary);
+}
+
+.quill-editor-container .ql-editor {
+    padding: 30px 40px;
+    line-height: 1.8;
+    color: var(--text-secondary);
+    min-height: 200px;
+}
+
+.quill-editor-container .ql-editor.ql-blank::before {
+    color: var(--text-muted);
+    font-style: italic;
+}
+
+.quill-editor-container .ql-editor h1,
+.quill-editor-container .ql-editor h2,
+.quill-editor-container .ql-editor h3 {
+    color: var(--text-primary);
+}
+
+.quill-editor-container .ql-editor a {
+    color: var(--accent);
+}
+
+.quill-editor-container .ql-editor blockquote {
+    border-left: 4px solid var(--accent);
+    padding-left: 16px;
+    color: var(--text-muted);
+}
+
+.quill-editor-container .ql-editor code,
+.quill-editor-container .ql-editor pre {
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--accent);
+    border-radius: 4px;
+}
+
+.quill-editor-container .ql-editor pre {
+    padding: 12px 16px;
+}
+
+.quill-editor-container .ql-editor img {
+    max-width: 100%;
+    border-radius: 8px;
+}
+
+/* Formula (KaTeX) tooltip */
+.ql-tooltip {
+    background: var(--bg-panel) !important;
+    border: 1px solid var(--border-color) !important;
+    border-radius: 8px !important;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4) !important;
+    color: var(--text-primary) !important;
+    z-index: 1100 !important;
+}
+
+.ql-tooltip input[type="text"] {
+    background: rgba(255, 255, 255, 0.05) !important;
+    border: 1px solid var(--border-color) !important;
+    border-radius: 6px !important;
+    color: var(--text-primary) !important;
+    padding: 6px 10px !important;
+}
+
+.ql-tooltip a.ql-action,
+.ql-tooltip a.ql-remove {
+    color: var(--accent) !important;
+}
+
+/* KaTeX in read-only view */
+.expanded-text .katex-display,
+#info-text .katex-display {
+    margin: 1em 0;
+}
+
+.expanded-text .katex,
+#info-text .katex {
+    color: var(--text-primary);
+}
+
+/* Inline images in read-only expanded text */
+.expanded-text img {
+    max-width: 100%;
+    border-radius: 8px;
+    margin: 10px 0;
+}
+
+#info-text img {
+    max-width: 100%;
+    border-radius: 6px;
+    margin: 8px 0;
 }
 
 /* ==================== IMAGE LIGHTBOX ==================== */
@@ -1095,13 +1298,36 @@ body {
         padding: 15px;
     }
 
+    .expanded-header {
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+
     .expanded-header h2 {
         font-size: 1.3rem;
+    }
+
+    .expanded-header-actions {
+        flex-wrap: wrap;
+        gap: 6px;
     }
 
     .expanded-text {
         padding: 20px 15px;
         font-size: 0.95rem;
+    }
+
+    /* Quill editor on mobile */
+    .quill-editor-container .ql-editor {
+        padding: 15px;
+    }
+
+    .quill-editor-container .ql-toolbar.ql-snow {
+        padding: 6px;
+    }
+
+    .quill-editor-container .ql-toolbar .ql-formats {
+        margin-right: 8px;
     }
 
     .path-tree {

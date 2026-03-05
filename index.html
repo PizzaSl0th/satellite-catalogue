@@ -5,6 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Satellite Catalogue</title>
     <link rel="stylesheet" href="styles.css">
+    <!-- KaTeX CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+    <!-- Quill Snow Theme CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css">
 </head>
 <body>
     <!-- Home Screen with Satellite Bubbles -->
@@ -115,9 +119,17 @@
             <div class="expanded-content">
                 <div class="expanded-header">
                     <h2 id="expanded-title"></h2>
-                    <button id="collapse-btn" class="collapse-button">Collapse</button>
+                    <div class="expanded-header-actions">
+                        <button id="edit-richtext-btn" class="expand-button">Edit</button>
+                        <button id="save-richtext-btn" class="expand-button hidden">Save</button>
+                        <button id="cancel-richtext-btn" class="collapse-button hidden">Cancel</button>
+                        <button id="collapse-btn" class="collapse-button">Collapse</button>
+                    </div>
                 </div>
                 <div id="expanded-text" class="expanded-text"></div>
+                <div id="quill-editor-container" class="quill-editor-container hidden">
+                    <div id="quill-editor"></div>
+                </div>
                 <div id="path-tree" class="path-tree"></div>
             </div>
         </div>
@@ -199,6 +211,12 @@
 
     <script src="satellites/procedures.js"></script>
     <script src="satellites/alarms.js"></script>
+
+    <!-- KaTeX -->
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"></script>
+    <!-- Quill -->
+    <script src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js"></script>
 
     <script src="app.js"></script>
 </body>
