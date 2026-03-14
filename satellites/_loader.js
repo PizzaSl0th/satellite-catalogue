@@ -11,6 +11,7 @@
 const SATELLITE_FILES = [];
 const PROCEDURE_FILES = [];
 const ALARM_FILES = [];
+const HARDWARE_FILES = [];
 
 // Recursively ensure all nodes have IDs
 function _ensureIds(node, prefix) {
@@ -47,4 +48,13 @@ function registerAlarm(data) {
         data.modules.forEach(function(m) { _ensureIds(m, 'mod'); });
     }
     ALARM_FILES.push(data);
+}
+
+// Helper function for hardware files to register themselves
+function registerHardware(data) {
+    _ensureIds(data, 'hw');
+    if (data.modules) {
+        data.modules.forEach(function(m) { _ensureIds(m, 'mod'); });
+    }
+    HARDWARE_FILES.push(data);
 }

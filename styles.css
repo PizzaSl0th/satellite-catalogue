@@ -624,6 +624,83 @@ body {
     opacity: 0.7;
 }
 
+/* ==================== SEVERITY BADGES ==================== */
+.severity-badge {
+    margin-top: 8px;
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    padding: 3px 8px;
+    border-radius: 6px;
+    display: inline-block;
+}
+
+.severity-critical {
+    background: rgba(255, 60, 60, 0.2);
+    color: #ff6b6b;
+    border: 1px solid rgba(255, 60, 60, 0.4);
+}
+
+.severity-warning {
+    background: rgba(255, 140, 0, 0.2);
+    color: #ffaa44;
+    border: 1px solid rgba(255, 140, 0, 0.4);
+}
+
+.severity-caution {
+    background: rgba(255, 210, 0, 0.2);
+    color: #ffd84d;
+    border: 1px solid rgba(255, 210, 0, 0.4);
+}
+
+.severity-info {
+    background: rgba(0, 150, 255, 0.2);
+    color: #66bbff;
+    border: 1px solid rgba(0, 150, 255, 0.4);
+}
+
+/* ==================== STATUS BADGES ==================== */
+.status-badge {
+    margin-top: 8px;
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    padding: 3px 8px;
+    border-radius: 6px;
+    display: inline-block;
+}
+
+.status-draft {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text-muted);
+    border: 1px solid var(--border-color);
+}
+
+.status-deprecated {
+    background: rgba(255, 60, 60, 0.1);
+    color: rgba(255, 100, 100, 0.8);
+    border: 1px solid rgba(255, 60, 60, 0.3);
+    text-decoration: line-through;
+}
+
+/* ==================== CATEGORY COUNT BADGE ==================== */
+.category-count {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    background: var(--accent);
+    color: var(--bg-dark);
+    font-size: 0.65rem;
+    font-weight: 700;
+    min-width: 20px;
+    height: 20px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 5px;
+}
+
 /* Info Panel (Right) */
 .info-panel {
     flex: 1;
@@ -1521,6 +1598,34 @@ body {
 }
 
 /* ==================== EDIT BUTTONS ==================== */
+/* ==================== PRINT BUTTON ==================== */
+.print-button {
+    position: absolute;
+    top: 20px;
+    right: 175px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    padding: 10px 14px;
+    border-radius: 25px;
+    cursor: pointer;
+    font-size: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.3s;
+    z-index: 100;
+}
+
+.print-button:hover {
+    background: rgba(255, 255, 255, 0.15);
+    border-color: var(--text-secondary);
+}
+
+@media (max-width: 768px) {
+    .print-button { display: none; }
+}
+
 .edit-satellite-button {
     position: absolute;
     top: 20px;
@@ -1664,6 +1769,45 @@ body {
     font-size: 0.9rem;
 }
 
+.form-group select {
+    width: 100%;
+    padding: 12px 15px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 2px solid var(--border-color);
+    border-radius: 10px;
+    color: var(--text-primary);
+    font-size: 1rem;
+    font-family: inherit;
+    transition: border-color 0.3s;
+    cursor: pointer;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='rgba(255,255,255,0.4)' stroke-width='2' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 15px center;
+    padding-right: 40px;
+}
+
+.form-group select:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
+.form-group select option {
+    background: #1a1a3e;
+    color: var(--text-primary);
+}
+
+.html-format-notice {
+    padding: 10px 14px;
+    background: rgba(255, 193, 7, 0.1);
+    border: 1px solid rgba(255, 193, 7, 0.35);
+    border-radius: 8px;
+    color: #ffd04d;
+    font-size: 0.85rem;
+    margin-bottom: 10px;
+    line-height: 1.5;
+}
+
 .form-group input,
 .form-group textarea {
     width: 100%;
@@ -1794,5 +1938,70 @@ body {
     to {
         opacity: 1;
         transform: translateX(-50%) translateY(0);
+    }
+}
+
+/* ==================== PRINT STYLES ==================== */
+@media print {
+    /* Hide all navigation and UI chrome */
+    #home-screen,
+    .back-button,
+    .print-button,
+    .edit-satellite-button,
+    .panels-container,
+    .selected-header,
+    .toast,
+    .modal,
+    .image-lightbox,
+    .expanded-header-actions {
+        display: none !important;
+    }
+
+    body {
+        background: #fff !important;
+        color: #000 !important;
+    }
+
+    /* Show the expanded overlay fullscreen for printing */
+    .expanded-overlay {
+        display: flex !important;
+        position: static !important;
+        background: #fff !important;
+        color: #000 !important;
+    }
+
+    .expanded-content {
+        padding: 20px !important;
+    }
+
+    .expanded-header h2 {
+        color: #000 !important;
+        font-size: 1.5rem !important;
+    }
+
+    .expanded-text {
+        background: #fff !important;
+        color: #000 !important;
+        border: none !important;
+        padding: 0 !important;
+        font-size: 11pt !important;
+        line-height: 1.6 !important;
+        overflow: visible !important;
+        box-shadow: none !important;
+    }
+
+    .path-tree {
+        background: #f0f0f0 !important;
+        border: 1px solid #ccc !important;
+    }
+
+    .path-node .path-name {
+        color: #000 !important;
+    }
+
+    .severity-badge, .status-badge {
+        border: 1px solid #999 !important;
+        color: #000 !important;
+        background: #f0f0f0 !important;
     }
 }

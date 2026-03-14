@@ -12,14 +12,16 @@
 const STORAGE_KEY = 'satellite-catalogue-edits';
 const PROCEDURES_STORAGE_KEY = 'satellite-catalogue-procedures-edits';
 const ALARMS_STORAGE_KEY = 'satellite-catalogue-alarms-edits';
+const HARDWARE_STORAGE_KEY = 'satellite-catalogue-hardware-edits';
 
 // ==================== STATE ====================
 let satellites = [];
 let procedures = [];
 let alarms = [];
+let hardware = [];
 let currentSatellite = null;
 let currentSatelliteIndex = -1;
-let currentDataSource = 'satellites'; // 'satellites', 'procedures', or 'alarms'
+let currentDataSource = 'satellites'; // 'satellites', 'procedures', 'alarms', or 'hardware'
 let currentPath = [];
 let selectedNode = null;
 let selectedNodeIndex = -1;
@@ -121,6 +123,13 @@ function loadCategoryData() {
     // Load alarms
     alarms = JSON.parse(JSON.stringify(ALARM_FILES));
     _applyCategoryEdits(alarms, ALARM_FILES, ALARMS_STORAGE_KEY);
+
+    // Load hardware
+    hardware = JSON.parse(JSON.stringify(HARDWARE_FILES));
+    _applyCategoryEdits(hardware, HARDWARE_FILES, HARDWARE_STORAGE_KEY);
+
+    // Update count badges on category bubbles
+    updateCategoryBadges();
 }
 
 function _applyCategoryEdits(dataArray, filesArray, storageKey) {
@@ -156,6 +165,8 @@ function saveCategoryData(category) {
     var dataArray, filesArray, storageKey;
     if (category === 'procedures') {
         dataArray = procedures; filesArray = PROCEDURE_FILES; storageKey = PROCEDURES_STORAGE_KEY;
+    } else if (category === 'hardware') {
+        dataArray = hardware; filesArray = HARDWARE_FILES; storageKey = HARDWARE_STORAGE_KEY;
     } else {
         dataArray = alarms; filesArray = ALARM_FILES; storageKey = ALARMS_STORAGE_KEY;
     }
@@ -183,19 +194,50 @@ function saveCategoryData(category) {
 function getCurrentDataArray() {
     if (currentDataSource === 'procedures') return procedures;
     if (currentDataSource === 'alarms') return alarms;
+    if (currentDataSource === 'hardware') return hardware;
     return satellites;
 }
 
 function getCurrentFilesArray() {
     if (currentDataSource === 'procedures') return PROCEDURE_FILES;
     if (currentDataSource === 'alarms') return ALARM_FILES;
+    if (currentDataSource === 'hardware') return HARDWARE_FILES;
     return SATELLITE_FILES;
 }
 
 function saveCurrentData() {
     if (currentDataSource === 'procedures') { saveCategoryData('procedures'); return; }
     if (currentDataSource === 'alarms') { saveCategoryData('alarms'); return; }
+    if (currentDataSource === 'hardware') { saveCategoryData('hardware'); return; }
     saveData();
+}
+
+// ==================== CATEGORY BADGES ====================
+function updateCategoryBadges() {
+    function countNodes(arr) {
+        var count = 0;
+        arr.forEach(function(entry) {
+            if (entry.modules) count += entry.modules.length;
+        });
+        return count;
+    }
+
+    var procCount = document.getElementById('count-procedures');
+    var almCount  = document.getElementById('count-alarms');
+    var hwCount   = document.getElementById('count-hardware');
+
+    if (procCount) {
+        var pc = countNodes(procedures);
+        procCount.textContent = pc > 0 ? pc : '';
+    }
+    if (almCount) {
+        var ac = countNodes(alarms);
+        almCount.textContent = ac > 0 ? ac : '';
+    }
+    if (hwCount) {
+        var hc = countNodes(hardware);
+        hwCount.textContent = hc > 0 ? hc : '';
+    }
 }
 
 function generateId() {
@@ -262,36 +304,58 @@ function uploadImage(file) {
 
 // ==================== EXPORT / IMPORT ====================
 function exportData() {
-    const dataStr = JSON.stringify(satellites, null, 2);
-    const blob = new Blob([dataStr], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
+    // Export all categories together in a versioned wrapper
+    var payload = {
+        version: 2,
+        exportedAt: new Date().toISOString(),
+        satellites: satellites,
+        procedures: procedures,
+        alarms: alarms,
+        hardware: hardware
+    };
+    var dataStr = JSON.stringify(payload, null, 2);
+    var blob = new Blob([dataStr], { type: 'application/json' });
+    var url = URL.createObjectURL(blob);
 
-    const a = document.createElement('a');
+    var a = document.createElement('a');
     a.href = url;
-    a.download = 'satellite-catalogue-export.json';
+    a.download = 'engineering-handbook-export.json';
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
 
     URL.revokeObjectURL(url);
-    showToast('Data exported!', 'success');
+    showToast('All data exported!', 'success');
 }
 
 function importData(file) {
-    const reader = new FileReader();
+    var reader = new FileReader();
     reader.onload = function(e) {
         try {
-            const imported = JSON.parse(e.target.result);
+            var imported = JSON.parse(e.target.result);
+
             if (Array.isArray(imported)) {
+                // Legacy format: plain array of satellites
                 satellites = imported;
                 saveData();
                 renderSatelliteBubbles();
-                showToast('Data imported!', 'success');
+                showToast('Satellites imported (legacy format)', 'success');
+
+            } else if (imported && imported.version === 2) {
+                // Current format: versioned combined object
+                if (Array.isArray(imported.satellites))  { satellites  = imported.satellites;  saveData(); }
+                if (Array.isArray(imported.procedures))  { procedures  = imported.procedures;  saveCategoryData('procedures'); }
+                if (Array.isArray(imported.alarms))      { alarms      = imported.alarms;      saveCategoryData('alarms'); }
+                if (Array.isArray(imported.hardware))    { hardware    = imported.hardware;    saveCategoryData('hardware'); }
+                renderSatelliteBubbles();
+                updateCategoryBadges();
+                showToast('All data imported!', 'success');
+
             } else {
-                showToast('Invalid format', 'error');
+                showToast('Unrecognised file format', 'error');
             }
         } catch (err) {
-            showToast('Failed to parse', 'error');
+            showToast('Failed to parse file', 'error');
         }
     };
     reader.readAsText(file);
@@ -333,8 +397,16 @@ function renderSatelliteBubbles() {
 function selectSatellite(index, source) {
     currentDataSource = source || 'satellites';
     var dataArray = getCurrentDataArray();
-    currentSatellite = dataArray[index];
-    currentSatelliteIndex = index;
+
+    // Bug fix: guard against empty arrays (e.g. clicking Procedures when none loaded)
+    if (!dataArray || dataArray.length === 0) {
+        showToast('No entries found for this category', 'error');
+        return;
+    }
+    var safeIndex = Math.max(0, Math.min(index, dataArray.length - 1));
+
+    currentSatellite = dataArray[safeIndex];
+    currentSatelliteIndex = safeIndex;
     currentPath = [];
     selectedNode = null;
     selectedNodeIndex = -1;
@@ -342,6 +414,9 @@ function selectSatellite(index, source) {
     // Update header
     var headerBubble = document.getElementById('header-bubble');
     headerBubble.innerHTML = '<span class="icon">' + (currentSatellite.icon || '🛰️') + '</span><span class="name">' + currentSatellite.name + '</span>';
+
+    // Update context-aware button labels
+    updateContextLabels();
 
     // Switch screens
     document.getElementById('home-screen').classList.remove('active');
@@ -352,6 +427,25 @@ function selectSatellite(index, source) {
     updateInfo(currentSatellite.name, currentSatellite.description, currentSatellite.descriptionFormat);
     renderTree(currentSatellite.modules || []);
     updateBreadcrumb();
+}
+
+function updateContextLabels() {
+    var addModuleBtn = document.getElementById('add-module-btn');
+    if (!addModuleBtn) return;
+
+    switch (currentDataSource) {
+        case 'procedures':
+            addModuleBtn.textContent = '+ Add Step';
+            break;
+        case 'alarms':
+            addModuleBtn.textContent = '+ Add Alarm';
+            break;
+        case 'hardware':
+            addModuleBtn.textContent = '+ Add Component';
+            break;
+        default:
+            addModuleBtn.textContent = '+ Add Module';
+    }
 }
 
 // ==================== RENDER DECISION TREE ====================
@@ -371,6 +465,16 @@ function renderTree(nodes) {
         html += '<div class="node-name">' + node.name + '</div>';
         if (node.type) {
             html += '<div class="node-type">' + node.type + '</div>';
+        }
+        // Severity badge (alarms)
+        if (node.severity) {
+            var sevLabels = { critical: '🔴 CRITICAL', warning: '🟠 WARNING', caution: '🟡 CAUTION', info: '🔵 INFO' };
+            html += '<div class="severity-badge severity-' + node.severity + '">' + (sevLabels[node.severity] || node.severity.toUpperCase()) + '</div>';
+        }
+        // Status badge (procedures / other)
+        if (node.status && node.status !== 'active') {
+            var statusLabels = { draft: '📝 DRAFT', deprecated: '⛔ DEPRECATED' };
+            html += '<div class="status-badge status-' + node.status + '">' + (statusLabels[node.status] || node.status.toUpperCase()) + '</div>';
         }
         if (node.modules && node.modules.length > 0) {
             html += '<div class="has-children">▼ ' + node.modules.length + ' sub-components</div>';
@@ -680,54 +784,83 @@ function collapseInfo() {
 function openEditModal(target) {
     editTarget = target;
 
-    var editName = document.getElementById('edit-name');
-    var editIcon = document.getElementById('edit-icon');
-    var editType = document.getElementById('edit-type');
-    var editImage = document.getElementById('edit-image');
+    var editName        = document.getElementById('edit-name');
+    var editIcon        = document.getElementById('edit-icon');
+    var editType        = document.getElementById('edit-type');
+    var editImage       = document.getElementById('edit-image');
     var editDescription = document.getElementById('edit-description');
-    var modalTitle = document.getElementById('modal-title');
-    var deleteBtn = document.getElementById('delete-in-modal');
+    var editSeverity    = document.getElementById('edit-severity');
+    var editStatus      = document.getElementById('edit-status');
+    var modalTitle      = document.getElementById('modal-title');
+    var deleteBtn       = document.getElementById('delete-in-modal');
+    var severityGroup   = document.getElementById('severity-group');
+    var statusGroup     = document.getElementById('status-group');
+    var htmlNotice      = document.getElementById('html-format-notice');
 
-    // Hide delete button by default
+    // Reset conditional fields
     deleteBtn.classList.add('hidden');
+    severityGroup.classList.add('hidden');
+    statusGroup.classList.add('hidden');
+    htmlNotice.classList.add('hidden');
+
+    // Show severity field for alarms, status field for procedures
+    if (currentDataSource === 'alarms') {
+        severityGroup.classList.remove('hidden');
+    } else if (currentDataSource === 'procedures') {
+        statusGroup.classList.remove('hidden');
+    }
+
+    // Context-aware "new" labels
+    var newLabels = { procedures: 'Step', alarms: 'Alarm', hardware: 'Component', satellites: 'Module' };
+    var entryLabel = newLabels[currentDataSource] || 'Module';
+
+    function fillNew(defaultIcon) {
+        editName.value = '';
+        editIcon.value = defaultIcon;
+        editType.value = '';
+        editImage.value = '';
+        editDescription.value = '';
+        editSeverity.value = '';
+        editStatus.value = 'active';
+    }
+
+    function fillNode(node, titleText) {
+        modalTitle.textContent = titleText;
+        editName.value  = node.name  || '';
+        editIcon.value  = node.icon  || '📦';
+        editType.value  = node.type  || '';
+        editImage.value = node.image || '';
+        editSeverity.value = node.severity || '';
+        editStatus.value   = node.status   || 'active';
+
+        // Bug fix: if the node uses HTML format, show a warning and strip tags
+        // so the textarea contains readable plain text instead of raw markup
+        if (node.descriptionFormat === 'html' && node.description) {
+            htmlNotice.classList.remove('hidden');
+            // Strip HTML tags for a readable preview in the plain-text textarea
+            var tmp = document.createElement('div');
+            tmp.innerHTML = node.description;
+            editDescription.value = tmp.textContent || tmp.innerText || '';
+        } else {
+            editDescription.value = node.description || '';
+        }
+
+        deleteBtn.classList.remove('hidden');
+    }
 
     if (target === 'new-satellite') {
         modalTitle.textContent = 'Add New Satellite';
-        editName.value = '';
-        editIcon.value = '🛰️';
-        editType.value = '';
-        editImage.value = '';
-        editDescription.value = '';
+        fillNew('🛰️');
     } else if (target === 'new-module') {
-        modalTitle.textContent = 'Add New Module';
-        editName.value = '';
-        editIcon.value = '📦';
-        editType.value = '';
-        editImage.value = '';
-        editDescription.value = '';
+        modalTitle.textContent = 'Add New ' + entryLabel;
+        fillNew('📦');
     } else if (target === 'new-subcomponent') {
         modalTitle.textContent = 'Add Sub-component to ' + selectedNode.name;
-        editName.value = '';
-        editIcon.value = '📦';
-        editType.value = '';
-        editImage.value = '';
-        editDescription.value = '';
+        fillNew('📦');
     } else if (target === 'satellite') {
-        modalTitle.textContent = 'Edit Satellite';
-        editName.value = currentSatellite.name || '';
-        editIcon.value = currentSatellite.icon || '🛰️';
-        editType.value = currentSatellite.type || '';
-        editImage.value = currentSatellite.image || '';
-        editDescription.value = currentSatellite.description || '';
-        deleteBtn.classList.remove('hidden');
+        fillNode(currentSatellite, 'Edit Entry');
     } else if (target === 'module' && selectedNode) {
-        modalTitle.textContent = 'Edit Module';
-        editName.value = selectedNode.name || '';
-        editIcon.value = selectedNode.icon || '📦';
-        editType.value = selectedNode.type || '';
-        editImage.value = selectedNode.image || '';
-        editDescription.value = selectedNode.description || '';
-        deleteBtn.classList.remove('hidden');
+        fillNode(selectedNode, 'Edit ' + entryLabel);
     }
 
     document.getElementById('edit-modal').classList.remove('hidden');
@@ -740,76 +873,66 @@ function closeEditModal() {
 }
 
 function saveEdit() {
-    var name = document.getElementById('edit-name').value.trim();
-    var icon = document.getElementById('edit-icon').value.trim() || '📦';
-    var type = document.getElementById('edit-type').value.trim();
-    var image = document.getElementById('edit-image').value.trim();
+    var name        = document.getElementById('edit-name').value.trim();
+    var icon        = document.getElementById('edit-icon').value.trim() || '📦';
+    var type        = document.getElementById('edit-type').value.trim();
+    var image       = document.getElementById('edit-image').value.trim();
     var description = document.getElementById('edit-description').value;
+    var severity    = document.getElementById('edit-severity').value;
+    var status      = document.getElementById('edit-status').value;
 
     if (!name) {
         showToast('Name is required', 'error');
         return;
     }
 
-    if (editTarget === 'new-satellite') {
-        var newSatellite = {
+    function buildNode() {
+        var node = {
             id: generateId(),
-            name: name,
-            icon: icon,
-            type: type,
-            image: image,
+            name: name, icon: icon, type: type, image: image,
             description: description,
             modules: []
         };
+        if (severity) node.severity = severity;
+        if (status && status !== 'active') node.status = status;
+        return node;
+    }
+
+    function applyToNode(node) {
+        node.name = name; node.icon = icon; node.type = type;
+        node.image = image; node.description = description;
+        // Saving from the plain-text modal clears any previous HTML format
+        delete node.descriptionFormat;
+        if (severity) node.severity = severity; else delete node.severity;
+        if (status && status !== 'active') node.status = status; else delete node.status;
+    }
+
+    if (editTarget === 'new-satellite') {
+        var newSatellite = buildNode();
+        newSatellite.icon = icon || '🛰️';
         satellites.push(newSatellite);
         saveData();
         renderSatelliteBubbles();
         showToast('Satellite added!', 'success');
 
     } else if (editTarget === 'new-module') {
-        var parent = getCurrentParent();
-        if (!parent.modules) parent.modules = [];
-
-        var newModule = {
-            id: generateId(),
-            name: name,
-            icon: icon,
-            type: type,
-            image: image,
-            description: description,
-            modules: []
-        };
-        parent.modules.push(newModule);
+        var parentNew = getCurrentParent();
+        if (!parentNew.modules) parentNew.modules = [];
+        parentNew.modules.push(buildNode());
         saveCurrentData();
-        renderTree(parent.modules);
-        showToast('Module added!', 'success');
+        renderTree(parentNew.modules);
+        updateCategoryBadges();
+        showToast('Entry added!', 'success');
 
     } else if (editTarget === 'new-subcomponent') {
         if (!selectedNode.modules) selectedNode.modules = [];
-
-        var newSubcomponent = {
-            id: generateId(),
-            name: name,
-            icon: icon,
-            type: type,
-            image: image,
-            description: description,
-            modules: []
-        };
-        selectedNode.modules.push(newSubcomponent);
+        selectedNode.modules.push(buildNode());
         saveCurrentData();
-
-        // Re-render current tree
-        var currentModules = getCurrentModules();
-        renderTree(currentModules);
+        renderTree(getCurrentModules());
         showToast('Sub-component added!', 'success');
 
     } else if (editTarget === 'satellite') {
-        currentSatellite.name = name;
-        currentSatellite.icon = icon;
-        currentSatellite.type = type;
-        currentSatellite.image = image;
-        currentSatellite.description = description;
+        applyToNode(currentSatellite);
         saveCurrentData();
 
         var headerBubble = document.getElementById('header-bubble');
@@ -823,15 +946,11 @@ function saveEdit() {
         showToast('Saved!', 'success');
 
     } else if (editTarget === 'module' && selectedNode) {
-        selectedNode.name = name;
-        selectedNode.icon = icon;
-        selectedNode.type = type;
-        selectedNode.image = image;
-        selectedNode.description = description;
+        applyToNode(selectedNode);
         saveCurrentData();
 
-        var modules = getCurrentModules();
-        renderTree(modules);
+        var currentMods = getCurrentModules();
+        renderTree(currentMods);
         updateInfo(name, description, selectedNode.descriptionFormat);
         updateImage(image, name);
 
@@ -887,37 +1006,46 @@ function deleteSelectedModule() {
         var isCurrentContext = currentPath.length > 0 &&
             currentPath[currentPath.length - 1].nodeRef === selectedNode;
 
+        var deleteParent;
         if (isCurrentContext) {
             // Go up one level and delete from there
             var indexToDelete = currentPath[currentPath.length - 1].selectedIndex;
             currentPath.pop();
-
-            var parent = getCurrentParent();
-            if (parent.modules) {
-                parent.modules.splice(indexToDelete, 1);
+            deleteParent = getCurrentParent();
+            if (deleteParent.modules) {
+                deleteParent.modules.splice(indexToDelete, 1);
                 saveCurrentData();
-                renderTree(parent.modules || []);
+                renderTree(deleteParent.modules || []);
                 updateBreadcrumb();
                 selectedNode = null;
                 selectedNodeIndex = -1;
-                updateInfo(parent.name, parent.description, parent.descriptionFormat);
-                updateImage(parent.image, parent.name);
+                updateInfo(deleteParent.name, deleteParent.description, deleteParent.descriptionFormat);
+                updateImage(deleteParent.image, deleteParent.name);
                 showToast('Deleted', 'success');
             }
         } else {
             // Deleting a child of the current view
-            var parent = getCurrentParent();
-            if (parent.modules) {
-                parent.modules.splice(selectedNodeIndex, 1);
+            deleteParent = getCurrentParent();
+            if (deleteParent.modules) {
+                deleteParent.modules.splice(selectedNodeIndex, 1);
                 saveCurrentData();
-                renderTree(parent.modules);
+                renderTree(deleteParent.modules);
                 selectedNode = null;
                 selectedNodeIndex = -1;
-                updateInfo(parent.name, parent.description, parent.descriptionFormat);
+                updateInfo(deleteParent.name, deleteParent.description, deleteParent.descriptionFormat);
                 showToast('Deleted', 'success');
             }
         }
     });
+}
+
+// ==================== PRINT ====================
+function printCurrentEntry() {
+    // Expand the current info to full screen, then print
+    expandInfo();
+    setTimeout(function() {
+        window.print();
+    }, 300); // Small delay to let the expanded overlay render fully
 }
 
 // ==================== NAVIGATION ====================
@@ -934,13 +1062,21 @@ function goBack() {
 }
 
 // ==================== TOAST ====================
+var _toastTimer = null;
+
 function showToast(message, type) {
     var toast = document.getElementById('toast');
+    // Clear any in-flight hide timer so rapid toasts don't vanish early
+    if (_toastTimer) {
+        clearTimeout(_toastTimer);
+        _toastTimer = null;
+    }
     toast.textContent = message;
-    toast.className = 'toast ' + (type || 'info');
+    toast.className = 'toast ' + (type || 'info'); // removes 'hidden'
 
-    setTimeout(function() {
+    _toastTimer = setTimeout(function() {
         toast.classList.add('hidden');
+        _toastTimer = null;
     }, 3000);
 }
 
@@ -979,6 +1115,9 @@ function buildSearchIndex() {
     }
     for (var a = 0; a < alarms.length; a++) {
         crawl(alarms[a], a, [], ['Alarms', alarms[a].name], 'alarms');
+    }
+    for (var h = 0; h < hardware.length; h++) {
+        crawl(hardware[h], h, [], ['Hardware', hardware[h].name], 'hardware');
     }
 
     return results;
@@ -1360,10 +1499,15 @@ function setupEventListeners() {
         (function(bubble) {
             bubble.onclick = function() {
                 var category = this.getAttribute('data-category');
+                // selectSatellite now guards against empty arrays internally
                 selectSatellite(0, category);
             };
         })(categoryBubbles[c]);
     }
+
+    // Print button
+    var printBtn = document.getElementById('print-btn');
+    if (printBtn) printBtn.onclick = printCurrentEntry;
 
     // Home screen buttons
     document.getElementById('add-satellite-btn').onclick = function() {
